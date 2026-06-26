@@ -86,6 +86,9 @@ from stockbridge.converter import (
     read_selfstock, write_selfstock,
     name_to_pinyin,
     read_stockblock_ini, write_stockblock_ini,
+    read_blocknew_cfg, write_blocknew_cfg,
+    read_block_dat, write_block_dat,
+    _make_dat_record, _DAT_RECORD_SIZE, _BLOCKNEW_CFG_SIZE,
 )
 
 
@@ -204,3 +207,78 @@ def test_write_stockblock_ini_preserves_other_sections():
     assert "[SYSTEM]" in result
     assert "LastSynCodeID=100" in result
     assert "17:600172" in result
+
+
+def test_make_dat_record():
+    rec = _make_dat_record("0", "000720")
+    assert len(rec) == _DAT_RECORD_SIZE
+    assert rec[0:2] == b"\x00\x00"
+    assert rec[2:8] == b"000720"
+    assert rec[8] == 0x00  # null padding in 7-byte code field
+    assert rec[-1] == 0x01
+
+    rec = _make_dat_record("1", "600172")
+    assert rec[0:2] == b"\x01\x00"
+    assert rec[2:8] == b"600172"
+    assert rec[8] == 0x00
+
+
+def test_read_blocknew_cfg_empty():
+    path = tempfile.mktemp(suffix=".cfg")
+    result = read_blocknew_cfg(path)
+    assert result == []
+
+
+def test_write_and_read_blocknew_cfg():
+    path = tempfile.mktemp(suffix=".cfg")
+    write_blocknew_cfg(path, [("test", "TEST"), ("hz", "HZ")])
+    result = read_blocknew_cfg(path)
+    os.unlink(path)
+    assert len(result) == 2
+    names = {lower for lower, _ in result}
+    assert "test" in names
+    assert "hz" in names
+
+
+def test_write_blocknew_cfg_merges_existing():
+    path = tempfile.mktemp(suffix=".cfg")
+    write_blocknew_cfg(path, [("test", "TEST")])
+    write_blocknew_cfg(path, [("hz", "HZ")])
+    result = read_blocknew_cfg(path)
+    os.unlink(path)
+    assert len(result) == 2
+
+
+def test_read_block_dat_empty():
+    path = tempfile.mktemp(suffix=".dat")
+    result = read_block_dat(path)
+    assert result == []
+
+
+def test_write_and_read_block_dat():
+    path = tempfile.mktemp(suffix=".dat")
+    stocks = [("0", "000720"), ("1", "600172")]
+    write_block_dat(path, stocks)
+    result = read_block_dat(path)
+    os.unlink(path)
+    assert len(result) == 2
+    codes = {c for _, c in result}
+    assert "000720" in codes
+    assert "600172" in codes
+
+
+def test_write_block_dat_deduplicates():
+    path = tempfile.mktemp(suffix=".dat")
+    write_block_dat(path, [("0", "000720")])
+    write_block_dat(path, [("0", "000720"), ("1", "600172")])
+    result = read_block_dat(path)
+    os.unlink(path)
+    assert len(result) == 2
+
+
+def test_blocknew_cfg_file_size():
+    path = tempfile.mktemp(suffix=".cfg")
+    write_blocknew_cfg(path, [("a", "A"), ("b", "B"), ("c", "C")])
+    size = os.path.getsize(path)
+    os.unlink(path)
+    assert size == _BLOCKNEW_CFG_SIZE * 3

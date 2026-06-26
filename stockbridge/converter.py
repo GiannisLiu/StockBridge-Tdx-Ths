@@ -51,6 +51,40 @@ def entry_to_tdx_line(entry):
         return entry["C"]
 
 
+_BLOCKNEW_CFG_SIZE = 120
+_DAT_RECORD_SIZE = 0x50
+
+# Minimal valid .dat record template (80 bytes), based on a known-good TDX record.
+# We only vary the flag (offset 0x00) and code (offset 0x02); the rest is fixed.
+_DAT_TEMPLATE = bytes([
+    0x00, 0x00,                                                                     # 0x00: flag (overwritten)
+    0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,                                      # 0x02: code placeholder (overwritten)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                                # 0x09
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                                # 0x11
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                                      # 0x19 (7 bytes)
+    0x00,                                                                           # 0x20
+    0x12, 0x27, 0x35, 0x01, 0xf6, 0x28, 0x6c, 0x40,                                # 0x21
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                                      # 0x29
+    0x00, 0x00, 0x00, 0x00, 0x00,                                                  # 0x30
+    0xd0, 0x02, 0x00, 0x00,                                                        # 0x35
+    0xec, 0xc8, 0x00, 0x00,                                                        # 0x39
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                                # 0x3D
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                                # 0x45
+    0x00, 0x00,                                                                     # 0x4D
+    0x01,                                                                           # 0x4F
+])
+
+
+def _make_dat_record(market_tdx, code):
+    """Build an 80-byte .dat record for a single stock."""
+    rec = bytearray(_DAT_TEMPLATE)
+    rec[0:2] = int(market_tdx).to_bytes(2, "little")
+    code_bytes = code.encode("ascii")
+    rec[2:9] = b"\x00" * 7
+    rec[2:2 + len(code_bytes)] = code_bytes
+    return bytes(rec)
+
+
 def read_blk(path):
     if not os.path.exists(path):
         return []
@@ -92,9 +126,15 @@ def write_selfstock(path, entries, old_entries=None):
         json.dump(merged, f, ensure_ascii=False)
 
 
-def name_to_pinyin(name):
+def name_to_pinyin(name, taken=None):
     result = pinyin(name, style=Style.FIRST_LETTER)
-    return "".join([p[0] for p in result])
+    base = "".join([p[0] for p in result])
+    if taken is None or base not in taken:
+        return base
+    i = 2
+    while f"{base}{i}" in taken:
+        i += 1
+    return f"{base}{i}"
 
 
 def _parse_ini_sections(content):
@@ -183,3 +223,158 @@ def write_stockblock_ini(path, blocks, raw_content):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="gbk") as f:
         f.write(output)
+
+
+def read_blocknew_cfg(path):
+    """Read TDX blocknew.cfg, return list of (lower_name, upper_name) tuples."""
+    if not os.path.exists(path):
+        return []
+    with open(path, "rb") as f:
+        data = f.read()
+    entries = []
+    for offset in range(0, len(data), _BLOCKNEW_CFG_SIZE):
+        chunk = data[offset:offset + _BLOCKNEW_CFG_SIZE]
+        if len(chunk) < 8:
+            continue
+        lower = chunk[0:8].rstrip(b"\x00").decode("ascii", errors="ignore")
+        if not lower:
+            continue
+        upper_raw = chunk[0x30:0x38]
+        upper = upper_raw.lstrip(b"\x00").rstrip(b"\x00").decode("ascii", errors="ignore")
+        if not upper:
+            upper = lower.upper()
+        entries.append((lower, upper))
+    return entries
+
+
+def write_blocknew_cfg(path, entries):
+    """Write TDX blocknew.cfg. entries: list of (lower_name, upper_name)."""
+    existing = read_blocknew_cfg(path)
+    merged = {}
+    for lower, upper in existing:
+        merged[lower] = upper
+    for lower, upper in entries:
+        merged[lower] = upper
+
+    data = bytearray()
+    for lower, upper in merged.items():
+        entry = bytearray(_BLOCKNEW_CFG_SIZE)
+        lower_bytes = lower.encode("ascii")[:8]
+        upper_bytes = upper.encode("ascii")[:6]
+        entry[0:len(lower_bytes)] = lower_bytes
+        entry[0x32:0x32 + len(upper_bytes)] = upper_bytes
+        data.extend(entry)
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(data)
+
+
+def read_block_dat(path):
+    """Read a TDX <NAME>.dat file, return list of (market_tdx, code) tuples."""
+    if not os.path.exists(path):
+        return []
+    with open(path, "rb") as f:
+        data = f.read()
+    entries = []
+    for offset in range(0, len(data), _DAT_RECORD_SIZE):
+        rec = data[offset:offset + _DAT_RECORD_SIZE]
+        if len(rec) < 9:
+            continue
+        market = str(rec[0])
+        code_bytes = rec[2:9].rstrip(b"\x00")
+        code = code_bytes.decode("ascii", errors="ignore")
+        if code:
+            entries.append((market, code))
+    return entries
+
+
+def write_block_dat(path, stocks):
+    """Write a TDX <NAME>.dat file. stocks: list of (market_tdx, code)."""
+    existing = read_block_dat(path)
+    seen = set()
+    records = []
+    for market, code in existing:
+        key = (market, code)
+        if key not in seen:
+            seen.add(key)
+            records.append(_make_dat_record(market, code))
+    for market, code in stocks:
+        key = (market, code)
+        if key not in seen:
+            seen.add(key)
+            records.append(_make_dat_record(market, code))
+
+    data = b"".join(records)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(data)
+
+
+_CLR_SLOT_SIZE = 0x50  # 80 bytes per slot in blocknew.clr
+_CLR_DEFAULT_COLOR = 0x0088F8F0  # default BGR color for new blocks
+
+
+def read_blocknew_clr(path):
+    """Read TDX blocknew.clr, return dict {display_name_gbk: color}."""
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as f:
+        data = f.read()
+    result = {}
+    for offset in range(0, len(data), _CLR_SLOT_SIZE):
+        slot = data[offset:offset + _CLR_SLOT_SIZE]
+        if len(slot) < 0x38:
+            continue
+        if slot[0] == 0:
+            continue  # empty slot
+        name_bytes = slot[0:32]
+        null_idx = name_bytes.find(b"\x00")
+        if null_idx >= 0:
+            name_bytes = name_bytes[:null_idx]
+        name = name_bytes.decode("gbk", errors="ignore").strip()
+        if not name:
+            continue
+        color = int.from_bytes(slot[0x34:0x38], "little")
+        result[name] = color
+    return result
+
+
+def write_blocknew_clr(path, new_entries):
+    """Write entries to blocknew.clr. new_entries: {display_name: color, ...}.
+    Updates existing slots by name or fills empty slots. Color defaults if 0."""
+    if os.path.exists(path):
+        data = bytearray(open(path, "rb").read())
+    else:
+        data = bytearray()
+
+    while len(data) < _CLR_SLOT_SIZE:
+        data.extend(bytearray(_CLR_SLOT_SIZE))
+
+    existing = read_blocknew_clr(path)
+
+    for name, color in new_entries.items():
+        if name in existing:
+            continue
+
+        if color == 0:
+            color = _CLR_DEFAULT_COLOR
+
+        slot = bytearray(_CLR_SLOT_SIZE)
+        name_bytes = name.encode("gbk")[:31]
+        slot[0:len(name_bytes)] = name_bytes
+        slot[0x34:0x38] = color.to_bytes(4, "little")
+
+        # Fill first empty slot or append
+        placed = False
+        for i in range(0, len(data), _CLR_SLOT_SIZE):
+            if data[i] == 0:
+                data[i:i + _CLR_SLOT_SIZE] = slot
+                placed = True
+                break
+        if not placed:
+            data.extend(slot)
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(data)

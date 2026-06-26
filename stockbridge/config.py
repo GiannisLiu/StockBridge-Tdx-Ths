@@ -1,8 +1,8 @@
 import os
 
-TDX_PATH = "C:/new_tdx64"
-THS_PATH = "C:/同花顺软件/同花顺"
-THS_USER_ID = "mx_514154534"
+TDX_PATH = os.environ.get("TDX_PATH", "C:/new_tdx64")
+THS_PATH = os.environ.get("THS_PATH", "C:/同花顺软件/同花顺")
+THS_USER_ID = os.environ.get("THS_USER_ID", "mx_514154534")
 
 TDX_BLOCK_DIR = os.path.join(TDX_PATH, "T0002", "blocknew")
 THS_USER_DIR = os.path.join(THS_PATH, THS_USER_ID)
