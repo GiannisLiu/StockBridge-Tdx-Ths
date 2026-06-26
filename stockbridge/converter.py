@@ -8,7 +8,7 @@ def _infer_tdx_prefix(code):
         first = code[0]
         if first in ("6", "5", "7", "8"):  # Shanghai main/ETF/STAR
             return "1"
-        elif first in ("0", "2", "3"):  # Shenzhen main/SME/ChiNext
+        elif first in ("0", "1", "2", "3"):  # Shenzhen main/SME/ChiNext/ETF
             return "0"
         elif first == "9":  # Beijing
             return "2"

@@ -51,6 +51,29 @@ def test_entry_to_tdx_line_beijing():
     assert result == "2920000"
 
 
+def test_market_to_tdx_with_code_fallback():
+    result = market_to_tdx("XX", code="600172")
+    assert result == "1"
+
+
+def test_market_to_tdx_unknown_no_code():
+    import pytest
+    with pytest.raises(KeyError):
+        market_to_tdx("XX")
+
+
+def test_entry_to_tdx_line_unknown_market():
+    entry = {"C": "600172", "M": "XX"}
+    result = entry_to_tdx_line(entry)
+    assert result == "1600172"
+
+
+def test_entry_to_tdx_line_bare_fallback():
+    entry = {"C": "1A0001", "M": "XX"}
+    result = entry_to_tdx_line(entry)
+    assert result == "1A0001"
+
+
 def test_tdx_line_to_entry_strips_whitespace():
     result = tdx_line_to_entry("1600172\r\n")
     assert result == {"C": "600172", "M": "17", "P": "", "T": ""}
