@@ -6,11 +6,13 @@ def _infer_tdx_prefix(code):
     """Infer TDX prefix from stock code when M code is unknown."""
     if len(code) == 6 and code.isdigit():
         first = code[0]
-        if first in ("6", "5", "7", "8"):  # Shanghai main/ETF/STAR
+        if first in ("6", "5", "7"):  # Shanghai main/ETF
+            return "1"
+        elif code.startswith("688"):  # Shanghai STAR
             return "1"
         elif first in ("0", "1", "2", "3"):  # Shenzhen main/SME/ChiNext/ETF
             return "0"
-        elif first == "9":  # Beijing
+        elif first in ("8", "9"):  # Beijing (8xxx) / Beijing (9xxx)
             return "2"
     return None
 
