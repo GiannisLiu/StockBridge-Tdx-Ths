@@ -110,7 +110,7 @@ def _sync_ths_to_tdx(ths_block_hex_id, ths_blocks, logger):
 
     # Register the block in blocknew.cfg
     cfg_path = os.path.join(config.TDX_BLOCK_DIR, "blocknew.cfg")
-    converter.write_blocknew_cfg(cfg_path, [(blk_name, blk_name.upper())])
+    converter.write_blocknew_cfg(cfg_path, [(info["name"], blk_name.upper())])
 
     # Write Chinese display name to blocknew.clr
     clr_path = os.path.join(config.TDX_BLOCK_DIR, "blocknew.clr")

@@ -236,7 +236,10 @@ def read_blocknew_cfg(path):
         chunk = data[offset:offset + _BLOCKNEW_CFG_SIZE]
         if len(chunk) < 8:
             continue
-        lower = chunk[0:8].rstrip(b"\x00").decode("ascii", errors="ignore")
+        lower_raw = chunk[0:8].rstrip(b"\x00")
+        if not lower_raw:
+            continue
+        lower = lower_raw.decode("gbk", errors="replace")
         if not lower:
             continue
         upper_raw = chunk[0x30:0x38]
@@ -259,7 +262,7 @@ def write_blocknew_cfg(path, entries):
     data = bytearray()
     for lower, upper in merged.items():
         entry = bytearray(_BLOCKNEW_CFG_SIZE)
-        lower_bytes = lower.encode("ascii")[:8]
+        lower_bytes = lower.encode("gbk")[:8]
         upper_bytes = upper.encode("ascii")[:6]
         entry[0:len(lower_bytes)] = lower_bytes
         entry[0x32:0x32 + len(upper_bytes)] = upper_bytes
