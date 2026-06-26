@@ -8,9 +8,9 @@
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `TDX_PATH` | `C:/new_tdx64` | 通达信安装目录 |
-| `THS_PATH` | `C:/同花顺软件/同花顺` | 同花顺安装目录 |
-| `THS_USER_ID` | `mx_5141XXXX` | 同花顺用户 ID（目录名） |
+| `TDX_PATH` | — | 通达信安装目录 |
+| `THS_PATH` | — | 同花顺安装目录 |
+| `THS_USER_ID` | — | 同花顺用户 ID（目录名） |
 
 其他用户 clone 项目后只需设置环境变量指向自己的安装目录即可。
 
@@ -26,7 +26,7 @@ $env:THS_USER_ID = "mx_123456789"
 
 ```powershell
 # 启动（前台运行，Ctrl+C 停止）
-cd C:\Projects\StockBridge-Tdx-Ths
+cd <项目根目录>
 python -m stockbridge.main
 
 # 或后台运行（Windows PowerShell）
