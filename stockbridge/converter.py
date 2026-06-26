@@ -1,9 +1,28 @@
 _MARKET_TDX_TO_THS = {"0": "33", "1": "17", "2": "120"}
-_MARKET_THS_TO_TDX = {"33": "0", "17": "1", "120": "2"}
+_MARKET_THS_TO_TDX = {"33": "0", "17": "1", "120": "2", "16": "1", "20": "1"}
 
 
-def market_to_tdx(ths_market):
-    return _MARKET_THS_TO_TDX[ths_market]
+def _infer_tdx_prefix(code):
+    """Infer TDX prefix from stock code when M code is unknown."""
+    if len(code) == 6 and code.isdigit():
+        first = code[0]
+        if first in ("6", "5", "7", "8"):  # Shanghai main/ETF/STAR
+            return "1"
+        elif first in ("0", "2", "3"):  # Shenzhen main/SME/ChiNext
+            return "0"
+        elif first == "9":  # Beijing
+            return "2"
+    return None
+
+
+def market_to_tdx(ths_market, code=None):
+    if ths_market in _MARKET_THS_TO_TDX:
+        return _MARKET_THS_TO_TDX[ths_market]
+    if code:
+        prefix = _infer_tdx_prefix(code)
+        if prefix is not None:
+            return prefix
+    raise KeyError(f"Unknown market code '{ths_market}'")
 
 
 def market_to_ths(tdx_prefix):
@@ -18,8 +37,11 @@ def tdx_line_to_entry(line):
 
 
 def entry_to_tdx_line(entry):
-    prefix = market_to_tdx(entry["M"])
-    return f"{prefix}{entry['C']}"
+    try:
+        prefix = market_to_tdx(entry["M"], entry.get("C"))
+        return f"{prefix}{entry['C']}"
+    except KeyError:
+        return entry["C"]
 
 
 import json
