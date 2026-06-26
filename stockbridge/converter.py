@@ -1,3 +1,8 @@
+import json
+import os
+import re
+from pypinyin import pinyin, Style
+
 _MARKET_TDX_TO_THS = {"0": "33", "1": "17", "2": "120"}
 _MARKET_THS_TO_TDX = {"33": "0", "17": "1", "120": "2", "16": "1", "20": "1"}
 
@@ -44,12 +49,6 @@ def entry_to_tdx_line(entry):
         return f"{prefix}{entry['C']}"
     except KeyError:
         return entry["C"]
-
-
-import json
-import os
-import re
-from pypinyin import pinyin, Style
 
 
 def read_blk(path):

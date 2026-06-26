@@ -62,11 +62,15 @@ def test_init_sync_newer_tdx_overwrites_ths():
 
 def test_on_file_changed_debounce(tmp_path):
     tdx_dir = tmp_path / "tdx"
+    ths_dir = tmp_path / "ths"
     tdx_dir.mkdir()
+    ths_dir.mkdir()
     tdx_zxg = make_tdx_blk(str(tdx_dir), "zxg.blk", ["1600172"])
 
     import stockbridge.config as cfg
     cfg.TDX_BLOCK_DIR = str(tdx_dir)
+    cfg.THS_SELFSTOCK_FILE = str(ths_dir / "SelfStockInfo.json")
+    cfg.THS_BLOCK_FILE = str(ths_dir / "stockblock.ini")
 
     # First call should trigger
     on_file_changed(tdx_zxg, logger)

@@ -1,6 +1,5 @@
 import os
 import time
-import re
 from stockbridge import config
 from stockbridge import converter
 
